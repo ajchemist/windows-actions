@@ -1,0 +1,44 @@
+name: Build Windows ISO
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "ISO download URL"
+        required: true
+        default: "http://naver.me/59iBDWwL"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up NuGet
+        uses: nuget/setup-nuget@v1
+
+      - name: Install aria2
+        run: |
+          choco install aria2 -y
+
+      - name: Download Windows ISO
+        run: |
+          aria2c -x16 -s16 -d $env:RUNNER_TEMP -o windows.iso "seeds\Windows 11 24H2 RTM(빌드 26100.712) Tiny 8in1 KO-KR.torrent"
+
+      - name: Mount ISO
+        run: |
+          $mountResult = Mount-DiskImage -ImagePath $env:RUNNER_TEMP\windows.iso -PassThru
+          $driveLetter = ($mountResult | Get-Volume).DriveLetter
+          Write-Output "::set-env name=ISO_DRIVE_LETTER::$driveLetter"
+
+      - name: Run PowerShell script to build WIM
+        run: |
+          $targetDir = "${{ github.workspace }}\output"
+          $mountDir = "${{ github.workspace }}\mount"
+          New-Item -ItemType Directory -Force -Path $targetDir, $mountDir
+          Get-WindowsImage -ImagePath $env:ISO_DRIVE_LETTER:\sources\install.wim | Format-Table
